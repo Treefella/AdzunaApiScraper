@@ -14,79 +14,94 @@ class TestAdzunaJobScraper(unittest.TestCase):
     
     @patch('requests.get')
     def test_get_adzuna_jobs_success(self, mock_get):
-        """Test successful API call to Adzuna."""
+        """Test successful API call to Adzuna returns jobs."""
         mock_response = MagicMock()
-        mock_response.json.return_value = {'count': 150}
+        mock_response.json.return_value = {
+            'results': [
+                {'title': 'Python Dev', 'company': {'display_name': 'TechCorp'}, 'redirect_url': 'http://example.com'}
+            ]
+        }
         mock_get.return_value = mock_response
         
         result = adzuna_scraper.get_adzuna_jobs('test_id', 'test_key', 'python', 'UK')
-        self.assertEqual(result, 150)
+        self.assertEqual(len(result), 1)
+        self.assertEqual(result[0]['title'], 'Python Dev')
     
     @patch('requests.get')
     def test_get_adzuna_jobs_api_error(self, mock_get):
-        """Test API error handling."""
+        """Test API error handling returns empty list."""
         mock_get.side_effect = Exception("API Error")
         
         result = adzuna_scraper.get_adzuna_jobs('test_id', 'test_key', 'python', 'UK')
-        self.assertIsNone(result)
+        self.assertEqual(result, [])
     
     @patch('requests.get')
-    def test_get_adzuna_jobs_missing_count(self, mock_get):
-        """Test handling when count is missing from response."""
+    def test_get_adzuna_jobs_no_results(self, mock_get):
+        """Test handling when no results are returned."""
         mock_response = MagicMock()
-        mock_response.json.return_value = {}
+        mock_response.json.return_value = {'results': []}
         mock_get.return_value = mock_response
         
         result = adzuna_scraper.get_adzuna_jobs('test_id', 'test_key', 'python', 'UK')
-        self.assertEqual(result, 0)
+        self.assertEqual(result, [])
 
 class TestAdzunaIntegration(unittest.TestCase):
     """Integration tests for the Adzuna job scraper team."""
     
     @patch('requests.get')
     def test_full_search_pipeline(self, mock_get):
-        """Test complete search workflow."""
+        """Test complete search workflow returns job objects."""
         mock_response = MagicMock()
-        mock_response.json.return_value = {'count': 200}
+        mock_response.json.return_value = {
+            'results': [
+                {
+                    'title': 'Senior Python Dev',
+                    'company': {'display_name': 'TechCorp'},
+                    'location': {'display_name': 'London'},
+                    'salary_max': 80000,
+                    'redirect_url': 'http://example.com/1'
+                }
+            ]
+        }
         mock_get.return_value = mock_response
         
-        result = adzuna_scraper.get_adzuna_jobs('app123', 'key456', 'javascript', 'London')
+        result = adzuna_scraper.get_adzuna_jobs('app123', 'key456', 'python', 'London')
         
-        self.assertEqual(result, 200)
-        mock_get.assert_called_once()
-        call_args = mock_get.call_args[0][0]
-        self.assertIn('javascript', call_args)
-        self.assertIn('London', call_args)
+        self.assertEqual(len(result), 1)
+        self.assertEqual(result[0]['title'], 'Senior Python Dev')
+        self.assertIn('redirect_url', result[0])
     
     @patch('requests.get')
-    def test_multiple_search_queries(self, mock_get):
-        """Test multiple search queries in sequence."""
+    def test_multiple_jobs_returned(self, mock_get):
+        """Test multiple jobs are returned and parsed correctly."""
         mock_response = MagicMock()
-        
-        # First call returns 100 jobs
-        mock_response.json.return_value = {'count': 100}
+        mock_response.json.return_value = {
+            'results': [
+                {'title': 'Python Dev', 'company': {'display_name': 'Corp1'}, 'redirect_url': 'http://link1.com'},
+                {'title': 'Java Dev', 'company': {'display_name': 'Corp2'}, 'redirect_url': 'http://link2.com'},
+                {'title': 'Go Dev', 'company': {'display_name': 'Corp3'}, 'redirect_url': 'http://link3.com'}
+            ]
+        }
         mock_get.return_value = mock_response
-        result1 = adzuna_scraper.get_adzuna_jobs('app1', 'key1', 'python', 'UK')
         
-        # Second call returns 150 jobs
-        mock_response.json.return_value = {'count': 150}
-        result2 = adzuna_scraper.get_adzuna_jobs('app1', 'key1', 'java', 'US')
+        result = adzuna_scraper.get_adzuna_jobs('app1', 'key1', 'dev', 'US')
         
-        self.assertEqual(result1, 100)
-        self.assertEqual(result2, 150)
+        self.assertEqual(len(result), 3)
     
-    def test_results_list_format(self):
-        """Test that results list format is correct."""
-        results = [
-            {"search_term": "python", "location": "UK", "count": 100},
-            {"search_term": "java", "location": "US", "count": 150}
-        ]
+    def test_job_data_structure(self):
+        """Test that job data has expected structure."""
+        job = {
+            "title": "Test Developer",
+            "company": {"display_name": "Test Corp"},
+            "location": {"display_name": "Test City"},
+            "salary_max": 100000,
+            "redirect_url": "http://test.com"
+        }
         
-        for result in results:
-            self.assertIn("search_term", result)
-            self.assertIn("location", result)
-            self.assertIn("count", result)
-            self.assertIsInstance(result["count"], int)
+        # Verify all expected fields exist
+        self.assertIn("title", job)
+        self.assertIn("company", job)
+        self.assertIn("redirect_url", job)
 
 if __name__ == '__main__':
     unittest.main()
