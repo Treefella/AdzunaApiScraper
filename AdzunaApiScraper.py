@@ -16,6 +16,27 @@ def get_adzuna_jobs(app_id, api_key, search_term="python", location="UK"):
         return None
 
 # ----- GUI Functions -----
+def show_results_window(adzuna_total, search_term, location):
+    """Display results in a new window."""
+    results_window = tk.Toplevel(root)
+    results_window.title("Job Search Results")
+    results_window.geometry("400x300")
+    
+    # Title
+    title = tk.Label(results_window, text="Job Search Results", font=("Arial", 14, "bold"))
+    title.pack(pady=10)
+    
+    # Results details
+    info_frame = tk.Frame(results_window)
+    info_frame.pack(pady=10, padx=20, fill=tk.BOTH, expand=True)
+    
+    tk.Label(info_frame, text=f"Search Term: {search_term}", font=("Arial", 10)).pack(anchor="w", pady=5)
+    tk.Label(info_frame, text=f"Location: {location}", font=("Arial", 10)).pack(anchor="w", pady=5)
+    tk.Label(info_frame, text=f"Total Jobs Found: {adzuna_total}", font=("Arial", 12, "bold"), fg="green").pack(anchor="w", pady=10)
+    
+    # Close button
+    tk.Button(results_window, text="Close", command=results_window.destroy).pack(pady=10)
+
 def fetch_jobs():
     app_id = adzuna_app_id_entry.get()
     api_key = adzuna_api_key_entry.get()
@@ -23,9 +44,11 @@ def fetch_jobs():
     location = location_entry.get() or "UK"
 
     adzuna_total = get_adzuna_jobs(app_id, api_key, search_term, location)
-
-    result_text = f"Adzuna Total Jobs: {adzuna_total}"
-    messagebox.showinfo("Job Totals", result_text)
+    
+    if adzuna_total is not None:
+        show_results_window(adzuna_total, search_term, location)
+    else:
+        messagebox.showerror("Error", "Failed to fetch jobs. Check your API credentials.")
 
 # ----- GUI Setup -----
 root = tk.Tk()
