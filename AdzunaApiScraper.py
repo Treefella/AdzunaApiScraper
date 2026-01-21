@@ -75,13 +75,16 @@ def fetch_jobs():
     if jobs:
         current_jobs = jobs
         for job in jobs[:100]:  # Limit display to first 100
-            title = job.get('title', 'N/A')
-            company = job.get('company', {}).get('display_name', 'N/A')
+            # Format title with company
+            title = f"{job.get('title', 'N/A')} @ {job.get('company', {}).get('display_name', 'N/A')}"
+            link = job.get('redirect_url', '')
+            # Format description with location and salary
             location_name = job.get('location', {}).get('display_name', 'N/A')
             salary = job.get('salary_max', job.get('salary_min', 'Not specified'))
-            link = job.get('redirect_url', '')
+            salary_str = f"£{salary:,.0f}" if isinstance(salary, (int, float)) else str(salary)
+            description = f"{location_name} | {salary_str}"
             
-            table.insert('', 'end', values=(title, company, location_name, salary, link))
+            table.insert('', 'end', values=(title, link, description))
         
         save_button.config(state="normal")
         messagebox.showinfo("Success", f"Fetched {len(jobs)} jobs")
@@ -95,16 +98,16 @@ root.geometry("1200x600")
 
 # Control Panel
 control_frame = tk.Frame(root)
-control_frame.pack(pady=10)
+control_frame.pack(pady=10, fill=tk.X, padx=10)
 
-tk.Label(control_frame, text="Search Term:").grid(row=0, column=0, sticky="e", padx=5)
+tk.Label(control_frame, text="Search Term:").pack(side=tk.LEFT, padx=5)
 search_entry = tk.Entry(control_frame, width=30)
-search_entry.grid(row=0, column=1, padx=5)
+search_entry.pack(side=tk.LEFT, padx=5)
 search_entry.insert(0, "python")
 
-tk.Label(control_frame, text="Location:").grid(row=0, column=2, sticky="e", padx=5)
+tk.Label(control_frame, text="Location:").pack(side=tk.LEFT, padx=5)
 location_entry = tk.Entry(control_frame, width=30)
-location_entry.grid(row=0, column=3, padx=5)
+location_entry.pack(side=tk.LEFT, padx=5)
 location_entry.insert(0, "UK")
 
 # Buttons
@@ -115,26 +118,29 @@ tk.Button(button_frame, text="Fetch Jobs", command=fetch_jobs, bg="green", fg="w
 save_button = tk.Button(button_frame, text="Save JSON", command=save_to_json, bg="blue", fg="white", padx=15, pady=5, state="disabled")
 save_button.pack(side=tk.LEFT, padx=5)
 
-# Results Table
-columns = ("Title", "Company", "Location", "Salary", "Link")
-table = ttk.Treeview(root, columns=columns, show='headings', height=20)
+# Results Table with scrollbars
+table_frame = tk.Frame(root)
+table_frame.pack(fill=tk.BOTH, expand=True, padx=10, pady=10)
+
+columns = ("Title", "Link", "Description")
+table = ttk.Treeview(table_frame, columns=columns, show='headings', height=20)
 
 for col in columns:
-    width = 300 if col == "Title" else (200 if col in ["Company", "Location"] else 100)
+    width = 400 if col == "Title" else (100 if col == "Link" else 250)
     table.column(col, width=width)
     table.heading(col, text=col)
 
 # Add scrollbars
-vsb = ttk.Scrollbar(root, orient=tk.VERTICAL, command=table.yview)
-hsb = ttk.Scrollbar(root, orient=tk.HORIZONTAL, command=table.xview)
+vsb = ttk.Scrollbar(table_frame, orient=tk.VERTICAL, command=table.yview)
+hsb = ttk.Scrollbar(table_frame, orient=tk.HORIZONTAL, command=table.xview)
 table.configure(yscroll=vsb.set, xscroll=hsb.set)
 
-table.grid(row=2, column=0, sticky='nsew', padx=10, pady=10)
-vsb.grid(row=2, column=1, sticky='ns')
-hsb.grid(row=3, column=0, sticky='ew')
+table.grid(row=0, column=0, sticky='nsew')
+vsb.grid(row=0, column=1, sticky='ns')
+hsb.grid(row=1, column=0, sticky='ew')
 
-root.grid_rowconfigure(2, weight=1)
-root.grid_columnconfigure(0, weight=1)
+table_frame.grid_rowconfigure(0, weight=1)
+table_frame.grid_columnconfigure(0, weight=1)
 
 # Bind double-click to open links
 table.bind("<Double-1>", on_table_click)
