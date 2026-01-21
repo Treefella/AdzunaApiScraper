@@ -3,12 +3,14 @@ from tkinter import messagebox, ttk, filedialog, StringVar
 import requests
 import os
 import json
+from datetime import datetime
 from dotenv import load_dotenv
 
 load_dotenv()
 
 # Global variable to store current jobs
 current_jobs = []
+sort_reverse = False
 
 # ----- API Functions -----
 def get_adzuna_jobs(app_id, api_key, search_term="python", location="UK"):
@@ -46,11 +48,22 @@ def on_table_click(event):
     item = table.identify_row(event.y)
     if item:
         values = table.item(item, "values")
-        if len(values) > 4:  # Ensure link exists
-            url = values[4]
-            if url.startswith("http"):
+        if len(values) > 2:  # Ensure link exists (it's in column index 2 - "Link")
+            # Get all values: (Date, Score, Category, Title, Company, Location, Type, Rate, Skills, Applied, Link)
+            link = values[-1]  # Link is the last column
+            if link.startswith("http"):
                 import webbrowser
-                webbrowser.open(url)
+                webbrowser.open(link)
+
+# TODO: Implement sorting functionality for table columns
+def sort_table(col):
+    """Sort table by column (TODO: implement full sort)."""
+    pass
+
+# TODO: Check date filtering and sorting implementation
+def filter_by_date():
+    """Filter jobs by date (TODO: implement date filtering)."""
+    pass
 
 def fetch_jobs():
     """Fetch jobs from Adzuna API and populate table."""
@@ -74,17 +87,29 @@ def fetch_jobs():
     
     if jobs:
         current_jobs = jobs
-        for job in jobs[:100]:  # Limit display to first 100
-            # Format title with company
-            title = f"{job.get('title', 'N/A')} @ {job.get('company', {}).get('display_name', 'N/A')}"
-            link = job.get('redirect_url', '')
-            # Format description with location and salary
+        for idx, job in enumerate(jobs[:100], 1):  # Limit display to first 100
+            # Get job details
+            date_str = job.get('created', datetime.now().isoformat())[:10]  # TODO: Check date extraction
+            title = job.get('title', 'N/A')
+            company = job.get('company', {}).get('display_name', 'N/A')
             location_name = job.get('location', {}).get('display_name', 'N/A')
-            salary = job.get('salary_max', job.get('salary_min', 'Not specified'))
-            salary_str = f"£{salary:,.0f}" if isinstance(salary, (int, float)) else str(salary)
-            description = f"{location_name} | {salary_str}"
+            salary_max = job.get('salary_max', 0)
+            salary_min = job.get('salary_min', 0)
+            salary_str = f"£{salary_max:,.0f}" if salary_max else "N/A"
+            job_type = job.get('contract_type', 'N/A')
+            link = job.get('redirect_url', '')
             
-            table.insert('', 'end', values=(title, link, description))
+            # Insert with all columns matching smart_ai_job_system.py structure
+            # (Date, Title, Company, Location, Type, Salary, Link)
+            table.insert('', 'end', values=(
+                date_str,      # Date
+                title,         # Title
+                company,       # Company
+                location_name, # Location
+                job_type,      # Type
+                salary_str,    # Salary
+                link           # Link (hidden from display but used for opening)
+            ))
         
         save_button.config(state="normal")
         messagebox.showinfo("Success", f"Fetched {len(jobs)} jobs")
@@ -118,29 +143,43 @@ tk.Button(button_frame, text="Fetch Jobs", command=fetch_jobs, bg="green", fg="w
 save_button = tk.Button(button_frame, text="Save JSON", command=save_to_json, bg="blue", fg="white", padx=15, pady=5, state="disabled")
 save_button.pack(side=tk.LEFT, padx=5)
 
-# Results Table with scrollbars
+# Results Table with scrollbars (matching smart_ai_job_system.py structure)
 table_frame = tk.Frame(root)
 table_frame.pack(fill=tk.BOTH, expand=True, padx=10, pady=10)
 
-columns = ("Title", "Link", "Description")
-table = ttk.Treeview(table_frame, columns=columns, show='headings', height=20)
+tree_scroll = ttk.Scrollbar(table_frame)
+tree_scroll.pack(side='right', fill='y')
 
-for col in columns:
-    width = 400 if col == "Title" else (100 if col == "Link" else 250)
-    table.column(col, width=width)
-    table.heading(col, text=col)
+table = ttk.Treeview(table_frame, yscrollcommand=tree_scroll.set, selectmode='browse')
+table.pack(side='left', fill='both', expand=True)
+tree_scroll.config(command=table.yview)
 
-# Add scrollbars
-vsb = ttk.Scrollbar(table_frame, orient=tk.VERTICAL, command=table.yview)
+# Define columns matching smart_ai_job_system.py
+table['columns'] = ('Date', 'Title', 'Company', 'Location', 'Type', 'Salary', 'Link')
+
+# Column definitions
+table.column('#0', width=50, minwidth=50)
+table.column('Date', width=70, minwidth=60)
+table.column('Title', width=250, minwidth=200)
+table.column('Company', width=150, minwidth=100)
+table.column('Location', width=150, minwidth=100)
+table.column('Type', width=100, minwidth=80)
+table.column('Salary', width=100, minwidth=80)
+table.column('Link', width=0, stretch=False)  # Hidden column for job link
+
+# Headings
+table.heading('#0', text='#', anchor=tk.W)
+table.heading('Date', text='Date', anchor=tk.W)
+table.heading('Title', text='Job Title', anchor=tk.W)
+table.heading('Company', text='Company', anchor=tk.W)
+table.heading('Location', text='Location', anchor=tk.W)
+table.heading('Type', text='Type', anchor=tk.W)
+table.heading('Salary', text='Salary', anchor=tk.W)
+
+# Add horizontal scrollbar
 hsb = ttk.Scrollbar(table_frame, orient=tk.HORIZONTAL, command=table.xview)
-table.configure(yscroll=vsb.set, xscroll=hsb.set)
-
-table.grid(row=0, column=0, sticky='nsew')
-vsb.grid(row=0, column=1, sticky='ns')
-hsb.grid(row=1, column=0, sticky='ew')
-
-table_frame.grid_rowconfigure(0, weight=1)
-table_frame.grid_columnconfigure(0, weight=1)
+hsb.pack(side='bottom', fill='x')
+table.configure(xscroll=hsb.set)
 
 # Bind double-click to open links
 table.bind("<Double-1>", on_table_click)
